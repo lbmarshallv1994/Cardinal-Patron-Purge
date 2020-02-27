@@ -1,0 +1,4 @@
+Timestamp,Choose your library system,Last Circulation (Scale),Last Circulation (Unit),Last Hold (Scale),Last Hold (Unit),Last Payment (Scale),Last Payment (Unit),Last Activity (Scale),Last Activity (Unit),Active,Deleted,Expiration Date,Create Date,Profile Group
+2/26/2020 12:26:01,Sandhill Regional (426),2,Years,2,Years,2,Years,2,Years,Select only active users,Do not select deleted users,2/26/2020,2/22/2017,"Adult (25), Teen (27), School (86)"
+2/26/2020 13:04:44,Sandhill Regional (426),8,Years,7,Years,4,Years,4,Weeks,Select only active users,Do not select deleted users,2/26/2020,10/1/2018,"Adult (25), Teen (27), Juvenile (26), Internet (42)"
+2/26/2020 13:07:54,BHM Regional (236),6,Years,4,,2,Years,,,,Do not select deleted users,2/25/2020,2/1/2017,
