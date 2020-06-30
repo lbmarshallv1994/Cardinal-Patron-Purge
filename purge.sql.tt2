@@ -10,9 +10,11 @@ set
 
         last_update_time = now()
 
+where home_ou in (select id from actor.org_unit_descendants([%- home_ou -%]))
+
 [% IF last_circ != undef %]
 -- no unfinished circulations and no circulations within the last [%- last_circ %]
-where not exists (
+ and not exists (
 
         select 1
 
@@ -107,9 +109,14 @@ and profile in (
 
         )
 [%- END -%]
-
--- and patron is within OU [%- ou -%] and its descendants
-
-and home_ou in (select id from actor.org_unit_descendants([%- home_ou -%]));
+[%- IF circ_count -%]
+and (select count(*)
+from action.circulation
+where
+usr = au.id
+and xact_finish is null
+and checkin_time is null and
+(stop_fines not in('LOST','CLAIMSRETURNED') or stop_fines is null)) < [%- circ_count -%]
+[%- END -%]
 
 commit;

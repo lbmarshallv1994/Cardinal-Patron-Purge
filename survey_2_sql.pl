@@ -24,7 +24,6 @@ return undef;
 }
 else{
 my @ids = map {$ ~= s/\D//rg } @profile_list;
-print Dumper(\@ids);
 return  join(",",@ids);
 }
 
@@ -61,17 +60,21 @@ while ( my $ref = $csv->fetch ) {
     unless($ref->{'Active'} eq ''){
         $result->{active} = index($ref->{'Active'}, 'not') != -1 ? ' not ':' ';
     }
-    unless($ref->{'Deleted'} eq ''){
-        $result->{deleted} = index($ref->{'Deleted'}, 'not') != -1 ? ' not ':' ';
+    #unless($ref->{'Deleted'} eq ''){
+    #    $result->{deleted} = index($ref->{'Deleted'}, 'not') != -1 ? ' not ':' ';
+    #}
+    unless($ref->{'Account Expiration Date'} eq ''){
+        $result->{expire_date} = $ref->{'Account Expiration Date'};
     }
-    unless($ref->{'Expiration Date'} eq ''){
-        $result->{expiration_date} = $ref->{'Expiration Date'};
+    unless($ref->{'Account Creation Date'} eq ''){
+        $result->{create_date} = $ref->{'Account Creation Date'};
     }
-    unless($ref->{'Create Date'} eq ''){
-        $result->{create_date} = $ref->{'Create Date'};
+    unless($ref->{'Open Circulation Count'} eq ''){
+        $result->{circ_count} = $ref->{'Open Circulation Count'};
     }
-
-    	$tt->process('purge.sql.tt2', $result,"survey_query_".lc($ou_name).".sql")
+    my $sqlname = "survey_query_".lc($ou_name).".sql";
+    print("Processing ".$sqlname."\n");
+    	$tt->process('purge.sql.tt2', $result,$sqlname)
     || die $tt->error(), "\n";
 }
 
