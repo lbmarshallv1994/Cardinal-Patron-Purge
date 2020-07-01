@@ -72,6 +72,9 @@ while ( my $ref = $csv->fetch ) {
     unless($ref->{'Open Circulation Count'} eq ''){
         $result->{circ_count} = $ref->{'Open Circulation Count'};
     }
+    unless($ref->{'Maximum Fine'} eq ''){
+        $result->{max_fine} = $ref->{'Maximum Fine'};
+    }
     my $sqlname = "survey_query_".lc($ou_name).".sql";
     print("Processing ".$sqlname."\n");
     	$tt->process('purge.sql.tt2', $result,$sqlname)

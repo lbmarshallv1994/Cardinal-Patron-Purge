@@ -14,109 +14,70 @@ where home_ou in (select id from actor.org_unit_descendants([%- home_ou -%]))
 
 [% IF last_circ != undef %]
 -- no unfinished circulations and no circulations within the last [%- last_circ %]
- and not exists (
+and not exists ( select 1 from action.circulation ac where ac.usr = au.id and (xact_finish is null or (now() - ac.xact_start < '[%- last_circ -%]'::interval)))
 
-        select 1
 
-                from action.circulation ac
-
-                where ac.usr = au.id
-
-                and (
-
-                        xact_finish is null or (
-
-                                now() - ac.xact_start < '[%- last_circ -%]'::interval
-
-                        )
-
-                )
-
-        )
 [%- END -%]
-
 [% IF last_hold != undef %]
 -- no hold requests placed in the last [%- last_hold %]
-and not exists (
+and not exists ( select 1 from action.hold_request ahr where ahr.usr = au.id and (now() - request_time) < '[%- last_hold -%]'::interval )
 
-        select 1
 
-                from action.hold_request ahr
-
-                where ahr.usr = au.id
-
-                and (now() - request_time) < '[%- last_hold -%]'::interval
-
-        )
 [%- END -%]
 [% IF last_payment != undef %]
 -- no owed money in either direction and no payment within the last [%- last_payment %]
-and not exists (
+and not exists ( select 1 from money.materialized_billable_xact_summary mmbxs where mmbxs.usr = au.id and (balance_owed <> '0.00' or (now() - last_payment_ts) < '[%- last_payment -%]'::interval))
 
-        select 1
 
-                from money.materialized_billable_xact_summary mmbxs
-
-                where mmbxs.usr = au.id
-
-                and (
-
-                        balance_owed <> '0.00' or (now() - last_payment_ts) < '[%- last_payment -%]'::interval)
-
-        )
 [%- END -%]
 [% IF last_activity != undef %]
 -- no activity entries within the last [%- last_activity %]
-and not exists (
+and not exists ( select 1 from actor.usr_activity aua where aua.usr = au.id and (now() - event_time) < '[%- last_activity -%]'::interval)
 
-        select 1
 
-                from actor.usr_activity aua
-
-                where aua.usr = au.id
-
-                and (now() - event_time) < '[%- last_activity -%]'::interval
-
-        )
 [%- END -%]
 [% IF active != undef %]
 -- we do [%- active -%] care about active users
 and[% active %]au.active
+
+
 [%- END -%]
 [% IF deleted %]
 -- we do [%- deleted %] care about deleted users
 and[% deleted %]au.deleted
+
+
 [%- END -%]
 [% IF expire_date %]
 -- don't include non-expired users that don't otherwise meet the "inactive" criteria
 and expire_date < '[%- expiration_date -%]'::date
+
+
 [%- END -%]
 [% IF create_date %]
 -- we don't want users that have been created within after [% created_at %]
 and au.create_date < '[%- create_date %]'::date
-[%- END -%]
 
+
+[%- END -%]
 [% IF profile %]
 -- restrict to profile [%- profile %]
 and profile in ([%- profile %])
+
+
 [% ELSE %]
 -- select all patrons
-and profile in (
+and profile in ( select id from permission.grp_descendants(2))
 
-        select id
 
-                from permission.grp_descendants(2)
-
-        )
 [%- END -%]
 [%- IF circ_count -%]
-and (select count(*)
-from action.circulation
-where
-usr = au.id
-and xact_finish is null
-and checkin_time is null and
-(stop_fines not in('LOST','CLAIMSRETURNED') or stop_fines is null)) < [%- circ_count -%]
-[%- END -%]
+and (select count(*) from action.circulation where usr = au.id and xact_finish is null and checkin_time is null and (stop_fines not in('LOST','CLAIMSRETURNED') or stop_fines is null)) < [%- circ_count -%]
 
+
+[%- END -%]
+[%- IF max_fine -%]
+and coalesce((select balance_owed from money.open_usr_summary where usr = au.id),0) < [% max_fine %]
+
+[%- END -%]
 commit;
