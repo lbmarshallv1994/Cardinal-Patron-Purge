@@ -1,0 +1,16 @@
+[SSH]
+enabled = true
+host = 127.0.0.1
+keyname = 
+db_port = 5432
+
+[PSQL]
+db = evergreen
+host = 127.0.0.1
+port = 6432 
+username = psql
+password = admin
+
+[EVERGREEN]
+subdomains = cardinal_urls.ini
+patron_url = nccardinal.org/eg/staff/circ/patron/

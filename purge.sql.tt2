@@ -1,5 +1,13 @@
+[% IF trial_mode %]
+DROP TABLE IF EXISTS
+trial_purge_list;
+CREATE TEMP TABLE trial_purge_list(id BIGINT, create_date DATE, expire_date DATE, active BOOLEAN);
+INSERT INTO trial_purge_list
+select 
+au.id, au.create_date, au.expire_date, au.active
+from actor.usr au
+[% ELSE %]
 begin;
-
 update actor.usr au
 
 set
@@ -9,12 +17,16 @@ set
         alert_message = 'automatically set to inactive status via Scenic policy ' || alert_message,
 
         last_update_time = now()
-
+[% END %]
 where home_ou in (select id from actor.org_unit_descendants([%- home_ou -%]))
+[%- IF home_ou == '2' -%]
+-- separate Mauney patrons from Cleveland
+and home_ou != 102
+[%- END -%]
 
 [% IF last_circ != undef %]
 -- no unfinished circulations and no circulations within the last [%- last_circ %]
-and not exists ( select 1 from action.circulation ac where ac.usr = au.id and (xact_finish is null or (now() - ac.xact_start < '[%- last_circ -%]'::interval)))
+and not exists ( select 1 from action.circulation ac where ac.usr = au.id and checkin_time is null and (xact_finish is null or (now() - ac.xact_start < '[%- last_circ -%]'::interval)))
 
 
 [%- END -%]
@@ -39,20 +51,17 @@ and not exists ( select 1 from actor.usr_activity aua where aua.usr = au.id and 
 [% IF active != undef %]
 -- we do [%- active -%] care about active users
 and[% active %]au.active
-
-
 [%- END -%]
 [% IF deleted %]
 -- we do [%- deleted %] care about deleted users
 and[% deleted %]au.deleted
-
-
 [%- END -%]
 [% IF expire_date %]
 -- don't include non-expired users that don't otherwise meet the "inactive" criteria
-and expire_date < '[%- expiration_date -%]'::date
+and expire_date < LEAST('[%- expire_date -%]'::date, now()::date)
 
-
+[% ELSE %]
+and expire_date < now() - interval '18 months' 
 [%- END -%]
 [% IF create_date %]
 -- we don't want users that have been created within after [% created_at %]
@@ -77,7 +86,64 @@ and (select count(*) from action.circulation where usr = au.id and xact_finish i
 
 [%- END -%]
 [%- IF max_fine -%]
-and coalesce((select balance_owed from money.open_usr_summary where usr = au.id),0) < [% max_fine %]
+-- overdue fines
+and coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au.id and last_billing_type != 'Lost Materials'),0) < [% max_fine %]
 
 [%- END -%]
+[%- IF max_lost_fine -%]
+-- lost fines
+and coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au.id and last_billing_type = 'Lost Materials'),0) < [% max_lost_fine %]
+
+[%- END -%]
+[%- IF barred -%]
+-- we do[% barred %]want to select barred users
+and[% barred %]au.barred
+
+[%- END -%]
+and au.active
+[% IF trial_mode %]
+;
+select 
+au.id,
+true as purge,
+TRIM(TO_CHAR(au.create_date :: DATE, 'mm/dd/yyyy')) create_date,
+TRIM(TO_CHAR(au.expire_date :: DATE, 'mm/dd/yyyy')) expire_date,
+TRIM(TO_CHAR((select max(request_time)::DATE from action.hold_request where usr = au.id), 'mm/dd/yyyy')) last_hold_date,
+TRIM(TO_CHAR((select max(event_time)::DATE from actor.usr_activity aua where aua.usr = au.id), 'mm/dd/yyyy')) last_activity_date,
+(select count(*) from action.circulation ac where ac.usr = au.id and checkin_time is null and (xact_finish is null) and (stop_fines not in('LOST','CLAIMSRETURNED') or stop_fines is null)) as items_out,
+(select count(*) from action.circulation ac where ac.usr = au.id and checkin_time is null and (xact_finish is null) and stop_fines = 'LOST') as items_lost,
+(select count(*) from action.circulation ac where ac.usr = au.id and checkin_time is null and (xact_finish is null) and stop_fines = 'CLAIMSRETURNED') as items_claims_returned,
+coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au.id and last_billing_type != 'Lost Materials'),0) overdue_fines,
+coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au.id and last_billing_type = 'Lost Materials'),0) lost_fines
+from trial_purge_list au
+union 
+select
+au2.id,
+false as purge,
+TRIM(TO_CHAR(au2.create_date :: DATE, 'mm/dd/yyyy')) create_date,
+TRIM(TO_CHAR(au2.expire_date :: DATE, 'mm/dd/yyyy')) expire_date,
+TRIM(TO_CHAR((select max(request_time)::DATE from action.hold_request where usr = au2.id), 'mm/dd/yyyy')) last_hold_date,
+TRIM(TO_CHAR((select max(event_time)::DATE from actor.usr_activity aua where aua.usr = au2.id), 'mm/dd/yyyy')) last_activity_date,
+(select count(*) from action.circulation ac where ac.usr = au2.id and checkin_time is null and (xact_finish is null) and (stop_fines not in('LOST','CLAIMSRETURNED') or stop_fines is null)) as items_out,
+(select count(*) from action.circulation ac where ac.usr = au2.id and checkin_time is null and (xact_finish is null) and stop_fines = 'LOST') as items_lost,
+(select count(*) from action.circulation ac where ac.usr = au2.id and checkin_time is null and (xact_finish is null) and stop_fines = 'CLAIMSRETURNED') as items_claims_returned,
+coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au2.id and last_billing_type != 'Lost Materials'),0) overdue_fines,
+coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au2.id and last_billing_type = 'Lost Materials'),0) lost_fines
+from actor.usr au2
+where
+au2.active and
+au2.id not in (select id from trial_purge_list) and 
+[%- IF expire_date -%]
+au2.expire_date < LEAST('[%- expire_date -%]'::date, now()::date) and 
+[%- ELSE -%]
+au2.expire_date < (now() - interval '18 months')::date and 
+[%- END -%]
+au2.home_ou in (select id from actor.org_unit_descendants([%- home_ou -%]))
+[%- IF home_ou == '2' -%]
+and au2.home_ou != 102
+
+[%- END -%]
+order by purge desc
+[%- ELSE -%]
 commit;
+[% END %]
