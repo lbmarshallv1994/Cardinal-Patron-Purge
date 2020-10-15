@@ -69,7 +69,7 @@ while ( my $ref = $csv->fetch ) {
     $result->{last_payment} = $last_payment_t if $last_payment_t;
     $result->{last_activity} = $last_activity_t if $last_activity_t;
     $result->{profile} = parse_profiles($ref->{'Profile Group'});
-    
+    $result->{profile_exclude} = index($ref->{'Profile Options'}, 'Exclude') != -1 ? 'not ' : '';    
     #unless($ref->{'Active'} eq ''){
     #    $result->{active} = index($ref->{'Active'}, 'not') != -1 ? ' not ':' ';
     #}
@@ -84,6 +84,9 @@ while ( my $ref = $csv->fetch ) {
     }
     unless($ref->{'Open Circulation Count'} eq ''){
         $result->{circ_count} = $ref->{'Open Circulation Count'};
+    }
+    unless($ref->{'Lost Item Count'} eq ''){
+        $result->{lost_count} = $ref->{'Lost Item Count'};
     }
     unless($ref->{'Maximum Overdue Fine'} eq ''){
         $result->{max_fine} = $ref->{'Maximum Overdue Fine'};

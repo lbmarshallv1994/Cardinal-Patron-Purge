@@ -1,10 +1,31 @@
+[%-
+lost_billing_types = "'Lost Materials','Lost Material','Lost Materials Processing Fee','Lost/Destroyed Items','Lost Disk','Lost Hardcover','Lost Paperback','Lost CD','Lost Audiobook','Lost periodical','Lost Item Restocking Fee'";
+-%]
 [% IF trial_mode %]
+-- record trial_criteria
+DROP TABLE IF EXISTS
+trial_criteria;
+CREATE TEMP TABLE trial_criteria(last_circ TEXT, last_hold TEXT, last_payment TEXT, last_activity TEXT, expire_date TEXT, create_date TEXT, profile TEXT,circ_count TEXT,lost_count TEXT, max_fine TEXT, max_lost_fine TEXT,barred TEXT);
+INSERT INTO trial_criteria (last_circ, last_hold, last_payment, last_activity, expire_date, profile, circ_count, lost_count, max_fine, max_lost_fine,barred) VALUES(
+'[% last_circ %]',
+'[% last_hold %]',
+'[% last_payment %]',
+'[% last_activity %]',
+LEAST('[%- expire_date -%]'::date, now()::date),
+'[% profile_exclude %][% profile %]',
+'[% circ_count %]',
+'[% lost_count %]',
+'[% max_fine %]',
+'[% max_lost_fine %]',
+'[% barred %]'
+);
+
 DROP TABLE IF EXISTS
 trial_purge_list;
-CREATE TEMP TABLE trial_purge_list(id BIGINT, create_date DATE, expire_date DATE, active BOOLEAN);
+CREATE TEMP TABLE trial_purge_list(id BIGINT, profile INTEGER, create_date DATE, expire_date DATE, active BOOLEAN);
 INSERT INTO trial_purge_list
 select 
-au.id, au.create_date, au.expire_date, au.active
+au.id, au.profile, au.create_date, au.expire_date, au.active
 from actor.usr au
 [% ELSE %]
 begin;
@@ -70,8 +91,8 @@ and au.create_date < '[%- create_date %]'::date
 
 [%- END -%]
 [% IF profile %]
--- restrict to profile [%- profile %]
-and profile in ([%- profile %])
+-- restrict to profile group(s) [%- profile %]
+and profile [% profile_exclude %]in ([%- profile %])
 
 
 [% ELSE %]
@@ -85,14 +106,19 @@ and (select count(*) from action.circulation where usr = au.id and xact_finish i
 
 
 [%- END -%]
+[%- IF lost_count -%]
+and (select count(*) from action.circulation where usr = au.id and checkin_time is null and (stop_fines = 'LOST')) < [%- lost_count -%]
+
+
+[%- END -%]
 [%- IF max_fine -%]
 -- overdue fines
-and coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au.id and last_billing_type != 'Lost Materials'),0) < [% max_fine %]
+and coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au.id and last_billing_type not in ( [% lost_billing_types %])),0) < [% max_fine %]
 
 [%- END -%]
 [%- IF max_lost_fine -%]
 -- lost fines
-and coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au.id and last_billing_type = 'Lost Materials'),0) < [% max_lost_fine %]
+and coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au.id and last_billing_type in ([% lost_billing_types %])),0) < [% max_lost_fine %]
 
 [%- END -%]
 [%- IF barred -%]
@@ -106,6 +132,7 @@ and au.active
 select 
 au.id,
 true as purge,
+pg.name as permission_group,
 TRIM(TO_CHAR(au.create_date :: DATE, 'mm/dd/yyyy')) create_date,
 TRIM(TO_CHAR(au.expire_date :: DATE, 'mm/dd/yyyy')) expire_date,
 TRIM(TO_CHAR((select max(request_time)::DATE from action.hold_request where usr = au.id), 'mm/dd/yyyy')) last_hold_date,
@@ -113,13 +140,15 @@ TRIM(TO_CHAR((select max(event_time)::DATE from actor.usr_activity aua where aua
 (select count(*) from action.circulation ac where ac.usr = au.id and checkin_time is null and (xact_finish is null) and (stop_fines not in('LOST','CLAIMSRETURNED') or stop_fines is null)) as items_out,
 (select count(*) from action.circulation ac where ac.usr = au.id and checkin_time is null and (xact_finish is null) and stop_fines = 'LOST') as items_lost,
 (select count(*) from action.circulation ac where ac.usr = au.id and checkin_time is null and (xact_finish is null) and stop_fines = 'CLAIMSRETURNED') as items_claims_returned,
-coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au.id and last_billing_type != 'Lost Materials'),0) overdue_fines,
-coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au.id and last_billing_type = 'Lost Materials'),0) lost_fines
+coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au.id and last_billing_type not in ( [% lost_billing_types %])),0) overdue_fines,
+coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au.id and last_billing_type in ( [% lost_billing_types %])),0) lost_fines
 from trial_purge_list au
+join permission.grp_tree pg on au.profile = pg.id 
 union 
 select
 au2.id,
 false as purge,
+pg.name as permission_group,
 TRIM(TO_CHAR(au2.create_date :: DATE, 'mm/dd/yyyy')) create_date,
 TRIM(TO_CHAR(au2.expire_date :: DATE, 'mm/dd/yyyy')) expire_date,
 TRIM(TO_CHAR((select max(request_time)::DATE from action.hold_request where usr = au2.id), 'mm/dd/yyyy')) last_hold_date,
@@ -127,9 +156,10 @@ TRIM(TO_CHAR((select max(event_time)::DATE from actor.usr_activity aua where aua
 (select count(*) from action.circulation ac where ac.usr = au2.id and checkin_time is null and (xact_finish is null) and (stop_fines not in('LOST','CLAIMSRETURNED') or stop_fines is null)) as items_out,
 (select count(*) from action.circulation ac where ac.usr = au2.id and checkin_time is null and (xact_finish is null) and stop_fines = 'LOST') as items_lost,
 (select count(*) from action.circulation ac where ac.usr = au2.id and checkin_time is null and (xact_finish is null) and stop_fines = 'CLAIMSRETURNED') as items_claims_returned,
-coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au2.id and last_billing_type != 'Lost Materials'),0) overdue_fines,
-coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au2.id and last_billing_type = 'Lost Materials'),0) lost_fines
+coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au2.id and last_billing_type not in ( [% lost_billing_types %])),0) overdue_fines,
+coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au2.id and last_billing_type in ( [% lost_billing_types %])),0) lost_fines
 from actor.usr au2
+join permission.grp_tree pg on au2.profile = pg.id  
 where
 au2.active and
 au2.id not in (select id from trial_purge_list) and 
