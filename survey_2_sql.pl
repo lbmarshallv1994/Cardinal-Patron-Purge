@@ -2,6 +2,8 @@ use Template;
 use Parse::CSV;
 use Data::Dumper;
 use DateTime;  
+use Time::Piece;
+
 
 sub age_gen{
     my $key = shift;
@@ -29,11 +31,18 @@ return  join(",",@ids);
 }
 
 }
- 
+my $arg_count = $#ARGV + 1;
+unless($arg_count > 0){
+    die('usage: survey_2_sql survey_file [date_begin_range(year/month/day) date_end_range(year/month/day)]');
+}
 my $csv = Parse::CSV->new(
     file => $ARGV[0],
     names => 1
 );
+my $date_begin_range_string = $arg_count > 1 ? $ARGV[1] : undef;
+my $date_end_range_string = $arg_count > 2 ? $ARGV[2] : undef;
+my $date_begin_range = $date_begin_range_string ? Time::Piece->strptime($date_begin_range_string, "%Y/%m/%d") : undef;
+my $date_end_range = $date_end_range_string ? Time::Piece->strptime($date_end_range_string, "%Y/%m/%d") : undef;
 my $date_time =  DateTime->now;  
 my $date_string = $date_time->strftime( '%Y-%m-%d' ); 
 my $run_folder = "./$date_string";
@@ -53,6 +62,22 @@ while ( my $ref = $csv->fetch ) {
     my $result = {};
     # remove ID
     my $ou_name = $ref->{'Choose your library system'} =~ s/[\d\)\(]//rg;
+    # calculate timestamp
+    my $timestamp = Time::Piece->strptime(substr($ref->{"Timestamp"},0,10), "%Y/%m/%d");
+    #print($timestamp+"\n\n");
+    if($date_begin_range){
+       
+        if($date_end_range){
+            unless($timestamp >= $date_begin_range && $timestamp <= $date_end_range){
+                next();
+            }        
+        }
+        else{
+            unless($timestamp >= $date_begin_range){
+                next();
+            }
+        }
+    }
     #trim whitespace
     $ou_name =~ s/\s+$//;
     #replace internal spaces with _
@@ -60,6 +85,7 @@ while ( my $ref = $csv->fetch ) {
     $ou_id = $ref->{'Choose your library system'} =~ s/\D//rg;
 
     $result->{home_ou} = $ou_id;
+    
     my $last_circ_t = age_gen('Last Circulation',$ref);
     my $last_hold_t = age_gen('Last Hold',$ref);
     my $last_payment_t = age_gen('Last Payment',$ref);
