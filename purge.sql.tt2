@@ -11,7 +11,11 @@ INSERT INTO trial_criteria (last_circ, last_hold, last_payment, last_activity, e
 '[% last_hold %]',
 '[% last_payment %]',
 '[% last_activity %]',
+[% IF expire_date %]
 LEAST('[%- expire_date -%]'::date, now()::date),
+[% ELSE %]
+now()::date,
+[% END %]
 '[% profile_exclude %][% profile %]',
 '[% circ_count %]',
 '[% lost_count %]',
@@ -73,16 +77,14 @@ and not exists ( select 1 from actor.usr_activity aua where aua.usr = au.id and 
 -- we do [%- active -%] care about active users
 and[% active %]au.active
 [%- END -%]
-[% IF deleted %]
--- we do [%- deleted %] care about deleted users
-and[% deleted %]au.deleted
-[%- END -%]
+-- we don't care about deleted users
+and not au.deleted
 [% IF expire_date %]
 -- don't include non-expired users that don't otherwise meet the "inactive" criteria
 and expire_date < LEAST('[%- expire_date -%]'::date, now()::date)
 
 [% ELSE %]
-and expire_date < now() - interval '18 months' 
+and expire_date < now() - '18 months'::interval 
 [%- END -%]
 [% IF create_date %]
 -- we don't want users that have been created within after [% created_at %]
@@ -162,6 +164,7 @@ from actor.usr au2
 join permission.grp_tree pg on au2.profile = pg.id  
 where
 au2.active and
+not au2.deleted and
 au2.id not in (select id from trial_purge_list) and 
 [%- IF expire_date -%]
 au2.expire_date < LEAST('[%- expire_date -%]'::date, now()::date) and 
