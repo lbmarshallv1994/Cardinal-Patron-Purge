@@ -34,7 +34,8 @@ use constant {
     LOST_COUNT => 8,
     MAX_FINE => 9,
     MAX_LOST_FINE => 10,
-    BARRED => 11 
+    BARRED => 11, 
+    PROTECTED_USERS => 12
 };
 
 
@@ -47,12 +48,15 @@ sub add_worksheet{
     my @headers = ("Patron Link","Selected For Purge","Permission Group","Creation Date","Expiration Date","Last Hold Date","Last Activity Date","Items Checked Out","Items Lost","Items Claimed Returned","Outstanding Fines","Outstanding Lost Item Fines");
     my $worksheet = $workbook->add_worksheet($name);
     $worksheet->write_row('A1',\@headers);
+    # $worksheet->set_header(
+    
     $worksheet->set_column( 0, 0, 70 );    # Column  A (URL)   width set to 70
     $worksheet->set_column( 1, 1, 5 );    # Column  B (sel)  width set to 5
     $worksheet->set_column( 2, 2, 20 );    # Column  C (profile) width set to 20
     $worksheet->set_column( 3, 6, 20 );    # Column  D,E,F,G (dates) width set to 20
     $worksheet->set_column( 7,9, 15 );    # Column  H,I,J (items)   width set to 20
     $worksheet->set_column( 10, 11, 30 );    # Column  K,L (money)  width set to 30
+    $worksheet->set_column( 12, 12, 30 );    # Column  M width set to 30
     # set up formats
     my $green_format = $workbook->add_format(
     bg_color => '#1a3b1e',
@@ -74,6 +78,16 @@ sub add_worksheet{
     );
     $red_money_format->set_num_format( '$0.00' );
     $yellow_money_format->set_num_format( '$0.00' );
+#    if(!($criteria[PROTECTED_USERS] eq "")){
+#        $worksheet->conditional_formatting( "A2:A65536",
+#            {
+#                type     => 'cell',
+#                criteria => '>=',
+#                value    => $criteria[MAX_FINE]*0.9,
+#                format   => $red_money_format,
+#            }
+#        );
+#    }
     # apply money format to all overdue fine cells
     $worksheet->conditional_formatting( "K2:K65536",
         {
@@ -218,7 +232,7 @@ sub add_worksheet{
             format   => $yellow_format,
         }
     ); 
-    $worksheet->conditional_formatting( "A1:L1",
+    $worksheet->conditional_formatting( "A1:M1",
         {
             type     => 'no_errors',
             format   => $green_format,
@@ -266,6 +280,7 @@ sub create_criteria_worksheet{
     $headers[MAX_FINE] = "Max Fine";
     $headers[MAX_LOST_FINE] = "Max Lost Fine";
     $headers[BARRED] = "Barred";
+    $headers[PROTECTED_USERS] = "Protected Users";
     my $green_format = $workbook->add_format(
     bg_color => '#1a3b1e',
     color => '#ffffff'
@@ -274,9 +289,9 @@ sub create_criteria_worksheet{
     $worksheet->write_row('A1',\@headers);
     $worksheet->set_column( 0, 10, 20 );    # default column width of 20
     $worksheet->write_row("A".(2),$data_ref);
-    $worksheet->conditional_formatting( "A1:L1",
+    $worksheet->conditional_formatting( "A1:M1",
         {
-            type     => 'no_errors',
+            type     => 'no_blanks',
             format   => $green_format,
         }
     ); 
@@ -479,20 +494,23 @@ foreach my $sql_file (@files) {
         }
     }
     
-    my $totals_worksheet = add_totals_worksheet($workbook,\@criteria);
-    my $purge_rate = sprintf("%.0f",100 * ($purge_total)/($purge_total + $unpurge_total));
-    my @totals =         (
-            $purge_total,
-            $unpurge_total,
-            $purge_total+$unpurge_total,
-            "$purge_rate%",
-            $items_checked_out,
-            $items_lost,
-            $items_claimed,
-            sprintf("\$%.2f",$item_fines),
-            sprintf("\$%.2f",$lost_fines),
-            sprintf("\$%.2f",$total_money_lost));
-    $totals_worksheet->write_row("A2",\@totals);
+   
+    if($purge_total > 0){
+        my $totals_worksheet = add_totals_worksheet($workbook,\@criteria);
+        my $purge_rate = sprintf("%.0f",100 * ($purge_total)/($purge_total + $unpurge_total));
+        my @totals =         (
+                $purge_total,
+                $unpurge_total,
+                $purge_total+$unpurge_total,
+                "$purge_rate%",
+                $items_checked_out,
+                $items_lost,
+                $items_claimed,
+                sprintf("\$%.2f",$item_fines),
+                sprintf("\$%.2f",$lost_fines),
+                sprintf("\$%.2f",$total_money_lost));
+        $totals_worksheet->write_row("A2",\@totals);        
+    }
     create_criteria_worksheet(\@criteria,$workbook);
     $workbook->close(); 
 }

@@ -61,7 +61,8 @@ my $tt = Template->new({
 while ( my $ref = $csv->fetch ) {
     my $result = {};
     # remove ID
-    my $ou_name = $ref->{'Choose your library system'} =~ s/[\d\)\(]//rg;
+    my $ou_name = $ref->{'choose your library system'} =~ s/[\d\)\(]//rg;
+
     # calculate timestamp
     my $timestamp = Time::Piece->strptime(substr($ref->{"Timestamp"},0,10), "%Y/%m/%d");
     #print($timestamp+"\n\n");
@@ -80,50 +81,56 @@ while ( my $ref = $csv->fetch ) {
     }
     #trim whitespace
     $ou_name =~ s/\s+$//;
-    #replace internal spaces with _
-    $ou_name =~ s/\s/_/g;
-    $ou_id = $ref->{'Choose your library system'} =~ s/\D//rg;
+    $ou_id = $ref->{'choose your library system'} =~ s/\D//rg;
 
     $result->{home_ou} = $ou_id;
     
-    my $last_circ_t = age_gen('Last Circulation',$ref);
-    my $last_hold_t = age_gen('Last Hold',$ref);
-    my $last_payment_t = age_gen('Last Payment',$ref);
-    my $last_activity_t = age_gen('Last Activity',$ref);
+    my $last_circ_t = age_gen('last circulation',$ref);
+    my $last_hold_t = age_gen('last hold',$ref);
+    my $last_payment_t = age_gen('last payment',$ref);
+    my $last_activity_t = age_gen('last activity',$ref);
     $result->{last_circ} = $last_circ_t if $last_circ_t;
     $result->{last_hold} = $last_hold_t if $last_hold_t;
     $result->{last_payment} = $last_payment_t if $last_payment_t;
     $result->{last_activity} = $last_activity_t if $last_activity_t;
-    $result->{profile} = parse_profiles($ref->{'Profile Group'});
-    $result->{profile_exclude} = index($ref->{'Profile Options'}, 'Exclude') != -1 ? 'not ' : '';    
+    $result->{profile} = parse_profiles($ref->{'profile group'});
+    $result->{profile_exclude} = index($ref->{'profile options'}, 'Exclude') != -1 ? 'not ' : '';    
     #unless($ref->{'Active'} eq ''){
     #    $result->{active} = index($ref->{'Active'}, 'not') != -1 ? ' not ':' ';
     #}
     #unless($ref->{'Deleted'} eq ''){
     #    $result->{deleted} = index($ref->{'Deleted'}, 'not') != -1 ? ' not ':' ';
     #}
-    unless($ref->{'Account Expiration Date'} eq ''){
-        $result->{expire_date} = $ref->{'Account Expiration Date'};
+    print(Dumper($ref));
+    unless($ref->{'account expiration date'} eq ''){
+        $result->{expire_date} = $ref->{'account expiration date'};
     }
-    unless($ref->{'Account Creation Date'} eq ''){
-        $result->{create_date} = $ref->{'Account Creation Date'};
+    unless($ref->{'account creation date'} eq ''){
+        $result->{create_date} = $ref->{'account creation date'};
     }
-    unless($ref->{'Open Circulation Count'} eq ''){
-        $result->{circ_count} = $ref->{'Open Circulation Count'};
+    unless($ref->{'open circulation count'} eq ''){
+        $result->{circ_count} = $ref->{'open circulation count'};
     }
-    unless($ref->{'Lost Item Count'} eq ''){
-        $result->{lost_count} = $ref->{'Lost Item Count'};
+    unless($ref->{'lost item count'} eq ''){
+        $result->{lost_count} = $ref->{'lost item count'};
     }
-    unless($ref->{'Maximum Overdue Fine'} eq ''){
-        $result->{max_fine} = $ref->{'Maximum Overdue Fine'};
+    unless($ref->{'maximum overdue fine'} eq ''){
+        $result->{max_fine} = $ref->{'maximum overdue fine'};
     }
-    unless($ref->{'Maximum Lost Item Fine'} eq ''){
-        $result->{max_lost_fine} = $ref->{'Maximum Lost Item Fine'};
+    unless($ref->{'maximum lost item fine'} eq ''){
+        $result->{max_lost_fine} = $ref->{'maximum lost item fine'};
     }
-    unless($ref->{'Barred Patrons'} eq ''){
-        $result->{barred} = index($ref->{'Barred Patrons'}, 'not') != -1 ? ' not ':' ';
-    }  
-    
+    unless($ref->{'barred patrons'} eq ''){
+        $result->{barred} = index($ref->{'barred patrons'}, 'not') != -1 ? ' not ':' ';
+        $result->{barred_display} = $ref->{'barred patrons'};
+    }
+    unless($ref->{'protected patrons'} eq ''){
+        $result->{protected_users} = $ref->{'protected patrons'};
+    }      
+    $result->{alert_message} = "automatically set to inactive status via $ou_name policy";
+    #replace internal spaces with _
+    $ou_name =~ s/\s/_/g;   
+    $ou_name =~ s/\.//g;   
     my $purge_sqlname = $purge_folder."/survey_query_".lc($ou_name)."_".$ou_id.".sql";
     my $trial_sqlname = $trial_folder."/survey_trial_".lc($ou_name)."_".$ou_id.".sql";
     print("Processing ".$purge_sqlname."\n");

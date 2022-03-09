@@ -1,12 +1,15 @@
 [%-
 lost_billing_types = "'Lost Materials','Lost Material','Lost Materials Processing Fee','Lost/Destroyed Items','Lost Disk','Lost Hardcover','Lost Paperback','Lost CD','Lost Audiobook','Lost periodical','Lost Item Restocking Fee'";
 -%]
+[% IF !trial_mode %]
+\set messageblurb '''[%- alert_message -%]'''
+[% END %]
 [% IF trial_mode %]
 -- record trial_criteria
 DROP TABLE IF EXISTS
 trial_criteria;
-CREATE TEMP TABLE trial_criteria(last_circ TEXT, last_hold TEXT, last_payment TEXT, last_activity TEXT, expire_date TEXT, create_date TEXT, profile TEXT,circ_count TEXT,lost_count TEXT, max_fine TEXT, max_lost_fine TEXT,barred TEXT);
-INSERT INTO trial_criteria (last_circ, last_hold, last_payment, last_activity, expire_date, profile, circ_count, lost_count, max_fine, max_lost_fine,barred) VALUES(
+CREATE TEMP TABLE trial_criteria(last_circ TEXT, last_hold TEXT, last_payment TEXT, last_activity TEXT, expire_date TEXT, create_date TEXT, profile TEXT,circ_count TEXT,lost_count TEXT, max_fine TEXT, max_lost_fine TEXT,barred TEXT,protected_users TEXT);
+INSERT INTO trial_criteria (last_circ, last_hold, last_payment, last_activity, expire_date, create_date, profile, circ_count, lost_count, max_fine, max_lost_fine,barred, protected_users) VALUES(
 '[% last_circ %]',
 '[% last_hold %]',
 '[% last_payment %]',
@@ -16,12 +19,18 @@ LEAST('[%- expire_date -%]'::date, now()::date),
 [% ELSE %]
 now()::date,
 [% END %]
+[% IF create_date %]
+'[%- create_date -%]'::date,
+[% ELSE %]
+'',
+[% END %]
 '[% profile_exclude %][% profile %]',
 '[% circ_count %]',
 '[% lost_count %]',
 '[% max_fine %]',
 '[% max_lost_fine %]',
-'[% barred %]'
+'[% barred_display %]',
+'[% protected_users %]'
 );
 
 DROP TABLE IF EXISTS
@@ -39,7 +48,7 @@ set
 
         active = false,
 
-        alert_message = 'automatically set to inactive status via Scenic policy ' || alert_message,
+        alert_message = coalesce( :messageblurb || ' ' || alert_message, :messageblurb),
 
         last_update_time = now()
 [% END %]
@@ -48,7 +57,12 @@ where home_ou in (select id from actor.org_unit_descendants([%- home_ou -%]))
 -- separate Mauney patrons from Cleveland
 and home_ou != 102
 [%- END -%]
+[% IF protected_users %]
+-- prevent protected users from being removed
+and au.id not in ([%- protected_users -%])
 
+
+[%- END -%]
 [% IF last_circ != undef %]
 -- no unfinished circulations and no circulations within the last [%- last_circ %]
 and not exists ( select 1 from action.circulation ac where ac.usr = au.id and checkin_time is null and (xact_finish is null or (now() - ac.xact_start < '[%- last_circ -%]'::interval)))
@@ -87,7 +101,7 @@ and expire_date < LEAST('[%- expire_date -%]'::date, now()::date)
 and expire_date < now() - '18 months'::interval 
 [%- END -%]
 [% IF create_date %]
--- we don't want users that have been created within after [% created_at %]
+-- we don't want users that have been created after [% created_at %]
 and au.create_date < '[%- create_date %]'::date
 
 
@@ -178,5 +192,6 @@ and au2.home_ou != 102
 [%- END -%]
 order by purge desc
 [%- ELSE -%]
+;
 commit;
 [% END %]
