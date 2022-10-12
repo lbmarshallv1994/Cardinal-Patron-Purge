@@ -464,12 +464,12 @@ foreach my $sql_file (@files) {
             my $patron_id = $sql_row[0];
             # set up link to patron account
             $sql_row[0] = "$subdomain$patron_url$patron_id/checkout";
-            $items_checked_out += $sql_row[7];
-            $items_lost += $sql_row[8];
-            $items_claimed += $sql_row[9];
-            $item_fines += max(0,$sql_row[10]);
-            $lost_fines += max(0,$sql_row[11]);
-            $total_money_lost += max(0,$sql_row[10]) + max(0,$sql_row[11]);
+            $items_checked_out += $sql_row[8];
+            $items_lost += $sql_row[9];
+            $items_claimed += $sql_row[10];
+            $item_fines += max(0,$sql_row[11]);
+            $lost_fines += max(0,$sql_row[12]);
+            $total_money_lost += max(0,$sql_row[11]) + max(0,$sql_row[12]);
             $purge_worksheet->write_row("A$pcount",\@sql_row);
             $pcount += 1;
             $purge_total += 1;
