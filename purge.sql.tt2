@@ -35,10 +35,10 @@ now()::date,
 
 DROP TABLE IF EXISTS
 trial_purge_list;
-CREATE TEMP TABLE trial_purge_list(id BIGINT, profile INTEGER, create_date DATE, expire_date DATE, active BOOLEAN);
+CREATE TEMP TABLE trial_purge_list(id BIGINT, profile INTEGER, barred BOOLEAN, create_date DATE, expire_date DATE, active BOOLEAN);
 INSERT INTO trial_purge_list
 select 
-au.id, au.profile, au.create_date, au.expire_date, au.active
+au.id, au.profile, au.barred, au.create_date, au.expire_date, au.active
 from actor.usr au
 [% ELSE %]
 begin;
@@ -149,6 +149,7 @@ select
 au.id,
 true as purge,
 pg.name as permission_group,
+au.barred,
 TRIM(TO_CHAR(au.create_date :: DATE, 'mm/dd/yyyy')) create_date,
 TRIM(TO_CHAR(au.expire_date :: DATE, 'mm/dd/yyyy')) expire_date,
 TRIM(TO_CHAR((select max(request_time)::DATE from action.hold_request where usr = au.id), 'mm/dd/yyyy')) last_hold_date,
@@ -165,6 +166,7 @@ select
 au2.id,
 false as purge,
 pg.name as permission_group,
+au2.barred,
 TRIM(TO_CHAR(au2.create_date :: DATE, 'mm/dd/yyyy')) create_date,
 TRIM(TO_CHAR(au2.expire_date :: DATE, 'mm/dd/yyyy')) expire_date,
 TRIM(TO_CHAR((select max(request_time)::DATE from action.hold_request where usr = au2.id), 'mm/dd/yyyy')) last_hold_date,

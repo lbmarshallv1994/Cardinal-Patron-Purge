@@ -45,7 +45,7 @@ sub add_worksheet{
     my @criteria = @$criteria_ref;
     my $name = shift;
     # init file
-    my @headers = ("Patron Link","Selected For Purge","Permission Group","Creation Date","Expiration Date","Last Hold Date","Last Activity Date","Items Checked Out","Items Lost","Items Claimed Returned","Outstanding Fines","Outstanding Lost Item Fines");
+    my @headers = ("Patron Link","Selected For Purge","Permission Group","Barred","Creation Date","Expiration Date","Last Hold Date","Last Activity Date","Items Checked Out","Items Lost","Items Claimed Returned","Outstanding Fines","Outstanding Lost Item Fines");
     my $worksheet = $workbook->add_worksheet($name);
     $worksheet->write_row('A1',\@headers);
     # $worksheet->set_header(
@@ -53,10 +53,11 @@ sub add_worksheet{
     $worksheet->set_column( 0, 0, 70 );    # Column  A (URL)   width set to 70
     $worksheet->set_column( 1, 1, 5 );    # Column  B (sel)  width set to 5
     $worksheet->set_column( 2, 2, 20 );    # Column  C (profile) width set to 20
-    $worksheet->set_column( 3, 6, 20 );    # Column  D,E,F,G (dates) width set to 20
-    $worksheet->set_column( 7,9, 15 );    # Column  H,I,J (items)   width set to 20
-    $worksheet->set_column( 10, 11, 30 );    # Column  K,L (money)  width set to 30
-    $worksheet->set_column( 12, 12, 30 );    # Column  M width set to 30
+    $worksheet->set_column( 3, 3, 5 );    # Column  D (barred)  width set to 5
+    $worksheet->set_column( 4, 7, 20 );    # Column  E,F,G,H (dates) width set to 20
+    $worksheet->set_column( 8,10, 15 );    # Column  I,J,K (items)   width set to 20
+    $worksheet->set_column( 11, 12, 30 );    # Column  L,M (money)  width set to 30
+    $worksheet->set_column( 13, 13, 30 );    # Column  N width set to 30
     # set up formats
     my $green_format = $workbook->add_format(
     bg_color => '#1a3b1e',
@@ -89,17 +90,29 @@ sub add_worksheet{
 #        );
 #    }
     # apply money format to all overdue fine cells
-    $worksheet->conditional_formatting( "K2:K65536",
+    $worksheet->conditional_formatting( "L2:L65536",
         {
             type     => 'no_errors',
             format   => $money_format,
         }
     );
-
+    
+    if(!($criteria[BARRED] eq "")){
+        # red if patron barred
+        $worksheet->conditional_formatting( "D2:D65536",
+            {
+                type     => 'cell',
+                criteria => '>=',
+                value    => 1,
+                format   => $red_format,
+            }
+        );    
+    }
+    
     # over due fines formatting
     if(!($criteria[MAX_FINE] eq "")){
         # apply red format if outstanding fines within top 90% of maximum
-        $worksheet->conditional_formatting( "K2:K65536",
+        $worksheet->conditional_formatting( "L2:L65536",
             {
                 type     => 'cell',
                 criteria => '>=',
@@ -108,7 +121,7 @@ sub add_worksheet{
             }
         );
         # apply yellow format if outstanding fines at or above half of the maximum
-        $worksheet->conditional_formatting( "K2:K65536",
+        $worksheet->conditional_formatting( "L2:L65536",
             {
                 type     => 'cell',
                 criteria => '>=',
@@ -119,7 +132,7 @@ sub add_worksheet{
     }
     else{
         # apply yellow format if outstanding fines is above average
-        $worksheet->conditional_formatting( "K2:K65536",
+        $worksheet->conditional_formatting( "L2:L65536",
             {
                 type     => 'average',
                 criteria => 'above',
@@ -129,7 +142,7 @@ sub add_worksheet{
     }
 
     # apply money format to all lost fine cells
-    $worksheet->conditional_formatting( "L2:L65536",
+    $worksheet->conditional_formatting( "M2:M65536",
         {
             type     => 'no_errors',
             format   => $money_format,
@@ -137,7 +150,7 @@ sub add_worksheet{
     );
     if(!($criteria[MAX_LOST_FINE] eq "")){
         # apply red format if lost fines within 90% of maximum
-        $worksheet->conditional_formatting( "L2:L65536",
+        $worksheet->conditional_formatting( "M2:M65536",
             {
                 type     => 'cell',
                 criteria => '>=',
@@ -146,7 +159,7 @@ sub add_worksheet{
             }
         );
         # apply yellow format if lost fines at or above half of the maximum
-        $worksheet->conditional_formatting( "L2:L65536",
+        $worksheet->conditional_formatting( "M2:M65536",
             {
                 type     => 'cell',
                 criteria => '>=',
@@ -157,7 +170,7 @@ sub add_worksheet{
     }
     else{
         # apply yellow format if lost fines is above average
-        $worksheet->conditional_formatting( "L2:L65536",
+        $worksheet->conditional_formatting( "M2:M65536",
             {
                 type     => 'average',
                 criteria => 'above',
@@ -167,7 +180,7 @@ sub add_worksheet{
     }
     if(!($criteria[CIRC_COUNT] eq "")){
         # apply red format if items out within 90% of maximum
-        $worksheet->conditional_formatting( "H2:H65536",
+        $worksheet->conditional_formatting( "I2:I65536",
             {
                 type     => 'cell',
                 criteria => '>=',
@@ -176,7 +189,7 @@ sub add_worksheet{
             }
         );
         # apply yellow format if items out at or above half of the maximum
-        $worksheet->conditional_formatting( "H2:H65536",
+        $worksheet->conditional_formatting( "I2:I65536",
             {
                 type     => 'cell',
                 criteria => '>=',
@@ -187,7 +200,7 @@ sub add_worksheet{
     }
     else{
     # apply yellow format if items out is above average
-    $worksheet->conditional_formatting( "H2:H65536",
+    $worksheet->conditional_formatting( "I2:I65536",
             {
                 type     => 'average',
                 criteria => 'above',
@@ -197,7 +210,7 @@ sub add_worksheet{
     }
     if(!($criteria[LOST_COUNT] eq "")){
         # apply red format if items lost within 90% of maximum
-        $worksheet->conditional_formatting( "I2:I65536",
+        $worksheet->conditional_formatting( "J2:J65536",
             {
                 type     => 'cell',
                 criteria => '>=',
@@ -206,7 +219,7 @@ sub add_worksheet{
             }
         );
         # apply yellow format if items lost at or above half of the maximum
-        $worksheet->conditional_formatting( "I2:I65536",
+        $worksheet->conditional_formatting( "J2:J65536",
             {
                 type     => 'cell',
                 criteria => '>=',
@@ -217,7 +230,7 @@ sub add_worksheet{
     }
     else{
         # apply yellow format if items lost is above average
-        $worksheet->conditional_formatting( "I2:I65536",
+        $worksheet->conditional_formatting( "J2:J65536",
             {
                 type     => 'average',
                 criteria => 'above',
@@ -225,13 +238,14 @@ sub add_worksheet{
             }
         );
     }    
-    $worksheet->conditional_formatting( "J2:J65536",
+    $worksheet->conditional_formatting( "K2:K65536",
         {
             type     => 'average',
             criteria => 'above',
             format   => $yellow_format,
         }
     ); 
+    #make header green
     $worksheet->conditional_formatting( "A1:M1",
         {
             type     => 'no_errors',
