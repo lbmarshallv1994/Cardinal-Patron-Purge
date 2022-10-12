@@ -155,8 +155,8 @@ TRIM(TO_CHAR(au.expire_date :: DATE, 'mm/dd/yyyy')) expire_date,
 TRIM(TO_CHAR((select max(request_time)::DATE from action.hold_request where usr = au.id), 'mm/dd/yyyy')) last_hold_date,
 TRIM(TO_CHAR((select max(event_time)::DATE from actor.usr_activity aua where aua.usr = au.id), 'mm/dd/yyyy')) last_activity_date,
 (select count(*) from action.circulation ac where ac.usr = au.id and checkin_time is null and (xact_finish is null) and (stop_fines not in('LOST','CLAIMSRETURNED') or stop_fines is null)) as items_out,
-(select count(*) from action.circulation ac where ac.usr = au.id and checkin_time is null and (xact_finish is null) and stop_fines = 'LOST') as items_lost,
-(select count(*) from action.circulation ac where ac.usr = au.id and checkin_time is null and (xact_finish is null) and stop_fines = 'CLAIMSRETURNED') as items_claims_returned,
+(select count(*) from action.circulation ac where ac.usr = au.id and checkin_time is null and stop_fines = 'LOST') as items_lost,
+(select count(*) from action.circulation ac where ac.usr = au.id and checkin_time is null and stop_fines = 'CLAIMSRETURNED') as items_claims_returned,
 coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au.id and last_billing_type not in ( [% lost_billing_types %])),0) overdue_fines,
 coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au.id and last_billing_type in ( [% lost_billing_types %])),0) lost_fines
 from trial_purge_list au
@@ -172,8 +172,8 @@ TRIM(TO_CHAR(au2.expire_date :: DATE, 'mm/dd/yyyy')) expire_date,
 TRIM(TO_CHAR((select max(request_time)::DATE from action.hold_request where usr = au2.id), 'mm/dd/yyyy')) last_hold_date,
 TRIM(TO_CHAR((select max(event_time)::DATE from actor.usr_activity aua where aua.usr = au2.id), 'mm/dd/yyyy')) last_activity_date,
 (select count(*) from action.circulation ac where ac.usr = au2.id and checkin_time is null and (xact_finish is null) and (stop_fines not in('LOST','CLAIMSRETURNED') or stop_fines is null)) as items_out,
-(select count(*) from action.circulation ac where ac.usr = au2.id and checkin_time is null and (xact_finish is null) and stop_fines = 'LOST') as items_lost,
-(select count(*) from action.circulation ac where ac.usr = au2.id and checkin_time is null and (xact_finish is null) and stop_fines = 'CLAIMSRETURNED') as items_claims_returned,
+(select count(*) from action.circulation ac where ac.usr = au2.id and checkin_time is null and stop_fines = 'LOST') as items_lost,
+(select count(*) from action.circulation ac where ac.usr = au2.id and checkin_time is null and stop_fines = 'CLAIMSRETURNED') as items_claims_returned,
 coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au2.id and last_billing_type not in ( [% lost_billing_types %])),0) overdue_fines,
 coalesce((select sum(balance_owed) from money.materialized_billable_xact_summary where usr = au2.id and last_billing_type in ( [% lost_billing_types %])),0) lost_fines
 from actor.usr au2
